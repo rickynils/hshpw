@@ -1,0 +1,24 @@
+Name:                hshpw
+Version:             0.2
+Synopsis:            hshpw
+Description:         hshpw
+Author:              Rickard Nilsson
+Maintainer:          rickynils@gmail.com
+Stability:           Experimental
+Category:            System
+Build-type:          Simple
+Cabal-version:       >=1.2
+
+Executable hshpw
+  main-is: Hshpw.hs
+
+  Build-depends:
+    base >= 4 && < 5,
+    base64-bytestring,
+    bytestring,
+    cmdargs,
+    containers,
+    cryptohash >= 0.7.6,
+    parsec,
+    directory,
+    haskeline
