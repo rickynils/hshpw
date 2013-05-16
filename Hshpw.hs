@@ -4,11 +4,11 @@ module Main where
 import Control.Applicative
 import Crypto.Hash.Whirlpool (hash)
 import Data.ByteString.Base64 (encode)
-import Data.ByteString.Char8 (take, pack, unpack, dropWhile)
-import Data.Char (isDigit, isSpace)
+import qualified Data.ByteString.Char8 as BC
+import qualified Data.Char as C
 import Data.Maybe
 import qualified Data.Map as Map
-import Prelude hiding (dropWhile, take)
+import Prelude hiding (dropWhile, take, filter)
 import System.Console.CmdArgs
 import System.Console.Haskeline (runInputT, defaultSettings, getPassword)
 import qualified System.Directory as Dir
@@ -23,6 +23,8 @@ data Hshpw = Hshpw {
   listKeys :: Bool,
   stdin :: Bool
 } deriving (Show, Data, Typeable)
+
+data HashType = DefaultHash | DigitHash Int
 
 hpwdOpts = Hshpw {
   key = "",
@@ -48,16 +50,22 @@ doPrintPwd opts = do
   mfReadable <- fileIsReadable mf
   pwd <- fromMaybe "" <$> readPwd stdin
   if not mfReadable
-    then putStrLn $ mkPwd $ pwd ++ k
+    then putStrLn $ mkPwd DefaultHash $ pwd ++ k
     else IO.withFile mf IO.ReadMode $ \h -> do
-      salt <- fmap (Map.findWithDefault k k) (readMapFile h)
-      putStrLn $ mkPwd $ pwd ++ salt
+      (ht,salt) <- fmap (Map.findWithDefault (DefaultHash,k) k) (readMapFile h)
+      putStrLn $ mkPwd ht $ pwd ++ salt
 
 
 readPwd True = fmap Just getLine
 readPwd False = runInputT defaultSettings $ getPassword Nothing "Password:"
 
-mkPwd = unpack . take 10 . dropWhile (not . isDigit) . encode . hash . pack
+--mkPwd = unpack . take 10 . dropWhile (not . isDigit) . encode . hash . pack
+mkPwd :: HashType -> String -> String
+mkPwd ht = BC.unpack . BC.take n . f . encode . hash . BC.pack
+  where
+    (n, f) = case ht of
+      DefaultHash -> (10, BC.dropWhile (not . C.isDigit))
+      DigitHash n -> (n, BC.map $ \c -> C.intToDigit $ C.ord c `mod` 10)
 
 
 readMapFile = fmap parseMapFile . IO.hGetContents
@@ -68,11 +76,23 @@ readMapFile = fmap parseMapFile . IO.hGetContents
       skipMany space
       k <- ident
       skipMany1 space
+      ht <- option DefaultHash hashType
       s <- ident
       skipMany space
-      return (k,s)
-    ident = many1 (satisfy $ not . isSpace)
-
+      return (k,(ht,s))
+    ident = many1 (satisfy $ not . C.isSpace)
+    hashType = do
+      char '{'
+      ht <- choice [digitHash,defaultHash]
+      char '}'
+      return ht
+    defaultHash = do
+      string "DEFAULT"
+      return DefaultHash
+    digitHash = do
+      string "DIGIT:"
+      intStr <- many1 (satisfy C.isDigit)
+      return $ DigitHash (read intStr)
 
 fileIsReadable path = do
   exists <- Dir.doesFileExist path
