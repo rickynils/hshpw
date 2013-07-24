@@ -21,22 +21,29 @@ data Hshpw = Hshpw {
   key :: String,
   mapFile :: FilePath,
   listKeys :: Bool,
+  printUser :: Bool,
   stdin :: Bool
 } deriving (Show, Data, Typeable)
 
 data HashType = DefaultHash | DigitHash Int
+  deriving (Show)
 
 hpwdOpts = Hshpw {
   key = "",
   mapFile = "",
   listKeys = False,
+  printUser = False,
   stdin = False
 }
 
 
 main = do
-  opts @ Hshpw { listKeys = list } <- cmdArgs hpwdOpts
-  if list then doListKeys opts else doPrintPwd opts
+  opts @ Hshpw { listKeys = list, printUser = user } <- cmdArgs hpwdOpts
+  if list
+    then doListKeys opts
+    else if user
+      then doPrintUser opts
+      else doPrintPwd opts
 
 doListKeys opts = let mf = mapFile opts in do
   mfReadable <- fileIsReadable mf
@@ -45,21 +52,28 @@ doListKeys opts = let mf = mapFile opts in do
     else IO.withFile mf IO.ReadMode $ \h ->
       fmap Map.keys (readMapFile h) >>= mapM_ putStrLn
 
-doPrintPwd opts = do
+getInfo opts = do
   let Hshpw { key = k, mapFile = mf, stdin = stdin } = opts
   mfReadable <- fileIsReadable mf
-  pwd <- fromMaybe "" <$> readPwd stdin
   if not mfReadable
-    then putStrLn $ mkPwd DefaultHash $ pwd ++ k
+    then return (DefaultHash, k, Nothing)
     else IO.withFile mf IO.ReadMode $ \h -> do
-      (ht,salt) <- fmap (Map.findWithDefault (DefaultHash,k) k) (readMapFile h)
-      putStrLn $ mkPwd ht $ pwd ++ salt
+      m <- readMapFile h
+      return $! Map.findWithDefault (DefaultHash,k,Nothing) k m
 
+doPrintPwd opts = do
+  let Hshpw { stdin = stdin } = opts
+  pwd <- fromMaybe "" <$> readPwd stdin
+  (ht,salt,_) <- getInfo opts
+  putStrLn $ mkPwd ht $ pwd ++ salt
+
+doPrintUser opts = do
+  (_,_,u) <- getInfo opts
+  putStrLn $ fromMaybe "" u
 
 readPwd True = fmap Just getLine
 readPwd False = runInputT defaultSettings $ getPassword Nothing "Password:"
 
---mkPwd = unpack . take 10 . dropWhile (not . isDigit) . encode . hash . pack
 mkPwd :: HashType -> String -> String
 mkPwd ht = BC.unpack . BC.take n . f . encode . hash . BC.pack
   where
@@ -69,17 +83,19 @@ mkPwd ht = BC.unpack . BC.take n . f . encode . hash . BC.pack
 
 
 readMapFile = fmap parseMapFile . IO.hGetContents
-  where 
+  where
     parseMapFile = Map.fromList . either (const []) id . parse mappings ""
-    mappings = many1 mapping <* eof
+    mappings = sepEndBy1 mapping newline <* eof
     mapping = do
-      skipMany space
+      spaces'
       k <- ident
-      skipMany1 space
+      spaces'
       ht <- option DefaultHash hashType
       s <- ident
-      skipMany space
-      return (k,(ht,s))
+      spaces'
+      u <- optionMaybe ident
+      spaces'
+      return (k,(ht,s,u))
     ident = many1 (satisfy $ not . C.isSpace)
     hashType = do
       char '{'
@@ -93,6 +109,7 @@ readMapFile = fmap parseMapFile . IO.hGetContents
       string "DIGIT:"
       intStr <- many1 (satisfy C.isDigit)
       return $ DigitHash (read intStr)
+    spaces' = skipMany $ oneOf " \t"
 
 fileIsReadable path = do
   exists <- Dir.doesFileExist path
