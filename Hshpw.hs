@@ -25,7 +25,7 @@ data Hshpw = Hshpw {
   stdin :: Bool
 } deriving (Show, Data, Typeable)
 
-data HashType = DefaultHash | DigitHash Int
+data HashType = DefaultHash | DigitHash Int | AlphaNumHash Int
   deriving (Show)
 
 hpwdOpts = Hshpw {
@@ -79,6 +79,7 @@ mkPwd ht = BC.unpack . BC.take n . f . encode . hash . BC.pack
   where
     (n, f) = case ht of
       DefaultHash -> (10, BC.dropWhile (not . C.isDigit))
+      AlphaNumHash n -> (n, BC.filter C.isAlphaNum)
       DigitHash n -> (n, BC.map $ \c -> C.intToDigit $ C.ord c `mod` 10)
 
 
@@ -99,12 +100,16 @@ readMapFile = fmap parseMapFile . IO.hGetContents
     ident = many1 (satisfy $ not . C.isSpace)
     hashType = do
       char '{'
-      ht <- choice [digitHash,defaultHash]
+      ht <- choice [alphaNumHash,digitHash,defaultHash]
       char '}'
       return ht
     defaultHash = do
       string "DEFAULT"
       return DefaultHash
+    alphaNumHash = do
+      string "ALPHANUM:"
+      intStr <- many1 (satisfy C.isDigit)
+      return $ AlphaNumHash (read intStr)
     digitHash = do
       string "DIGIT:"
       intStr <- many1 (satisfy C.isDigit)
