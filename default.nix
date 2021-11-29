@@ -1,5 +1,5 @@
 { mkDerivation, base, base64-bytestring, bytestring, cmdargs
-, containers, cryptohash, directory, haskeline, parsec, stdenv
+, containers, cryptohash, directory, haskeline, lib, parsec
 }:
 mkDerivation {
   pname = "hshpw";
@@ -12,5 +12,6 @@ mkDerivation {
     directory haskeline parsec
   ];
   description = "hshpw";
-  license = stdenv.lib.licenses.unfree;
+  license = "unknown";
+  hydraPlatforms = lib.platforms.none;
 }
