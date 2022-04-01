@@ -38,7 +38,7 @@ hpwdOpts = Hshpw {
 
 
 main = do
-  opts @ Hshpw { listKeys = list, printUser = user } <- cmdArgs hpwdOpts
+  opts@Hshpw { listKeys = list, printUser = user } <- cmdArgs hpwdOpts
   if list
     then doListKeys opts
     else if user
