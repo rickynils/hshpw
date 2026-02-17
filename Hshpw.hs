@@ -25,7 +25,7 @@ data Hshpw = Hshpw {
   stdin :: Bool
 } deriving (Show, Data, Typeable)
 
-data HashType = DefaultHash | DigitHash Int | AlphaNumHash Int | AlphaNumHashPlus
+data HashType = DefaultHash | DigitHash Int | AlphaNumHash Int | AlphaNumHashPlus Int
   deriving (Show)
 
 hpwdOpts = Hshpw {
