@@ -101,7 +101,7 @@ readMapFile = fmap parseMapFile . IO.hGetContents
     ident = many1 (satisfy $ not . C.isSpace)
     hashType = do
       char '{'
-      ht <- choice [alphaNumHash,digitHash,defaultHash]
+      ht <- choice [alphaNumHash,alphaNumHashPlus,digitHash,defaultHash]
       char '}'
       return ht
     defaultHash = do
