@@ -25,7 +25,7 @@ data Hshpw = Hshpw {
   stdin :: Bool
 } deriving (Show, Data, Typeable)
 
-data HashType = DefaultHash | DigitHash Int | AlphaNumHash Int
+data HashType = DefaultHash | DigitHash Int | AlphaNumHash Int | AlphaNumHashPlus
   deriving (Show)
 
 hpwdOpts = Hshpw {
@@ -75,12 +75,13 @@ readPwd True = fmap Just getLine
 readPwd False = runInputT defaultSettings $ getPassword Nothing "Password:"
 
 mkPwd :: HashType -> String -> String
-mkPwd ht = BC.unpack . BC.take n . f . encode . hash . BC.pack
+mkPwd ht = (++ suf) . BC.unpack . BC.take n . f . encode . hash . BC.pack
   where
-    (n, f) = case ht of
-      DefaultHash -> (10, BC.dropWhile (not . C.isDigit))
-      AlphaNumHash n -> (n, BC.filter C.isAlphaNum)
-      DigitHash n -> (n, BC.map $ \c -> C.intToDigit $ C.ord c `mod` 10)
+    (n, f, suf) = case ht of
+      DefaultHash -> (10, BC.dropWhile (not . C.isDigit), "")
+      AlphaNumHash n -> (n, BC.filter C.isAlphaNum, "")
+      AlphaNumHashPlus n -> (n, BC.filter C.isAlphaNum, "+")
+      DigitHash n -> (n, BC.map $ \c -> C.intToDigit $ C.ord c `mod` 10, "")
 
 
 readMapFile = fmap parseMapFile . IO.hGetContents
@@ -106,6 +107,10 @@ readMapFile = fmap parseMapFile . IO.hGetContents
     defaultHash = do
       string "DEFAULT"
       return DefaultHash
+    alphaNumHashPlus = do
+      string "+ALPHANUM:"
+      intStr <- many1 (satisfy C.isDigit)
+      return $ AlphaNumHashPlus (read intStr)
     alphaNumHash = do
       string "ALPHANUM:"
       intStr <- many1 (satisfy C.isDigit)
